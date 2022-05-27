@@ -29,7 +29,12 @@ class MangaHereCc(Provider, Std):
         guid_key = self.guid_key(content)
 
         pages = int(self.document_fromstring(content, '.pager-list-left span > a', -2).get('data-page'))
-        chapter_url = self.re.search(r'^(.+/c\d+(?:\.\d+))/', self.chapter).group(1)
+
+        chapter_regex = self.re.search(r'^(.+/c\d+(?:\.\d+))/', self.chapter)
+        if not chapter_regex:
+            chapter_regex = self.re.search(r'^(.+/c\d+(?:\d+))/', self.chapter)
+        
+        chapter_url = chapter_regex.group(1)
 
         n = self.normalize_uri
         return [n(i) for i in self._parse_images(pages, chapter_url, chapter_id, guid_key)]
