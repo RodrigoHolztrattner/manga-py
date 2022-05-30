@@ -1,4 +1,7 @@
 import json
+import shutil
+import os
+from pathlib import Path    
 from concurrent.futures import ThreadPoolExecutor
 from logging import info, warning, error
 from sys import stderr
@@ -68,26 +71,33 @@ class OnePerOneDownloader(BaseDownloadMethod):
                 error('Error processing file: %s' % self.provider.get_archive_name())
                 return
 
-            self._archive = Archive()
-            self._archive.not_change_files_extension = self.provider._params.get('not_change_files_extension', False)
-            self._archive.no_webp = self.provider._image_params.get('no_webp', False)
+            if self.provider._compress:
+                self._archive = Archive()
+                self._archive.not_change_files_extension = self.provider._params.get('not_change_files_extension', False)
+                self._archive.no_webp = self.provider._image_params.get('no_webp', False)
 
-            if self.provider._save_chapter_info:
-                self._archive.write_file('info.json', json.dumps(self.chapter_url))
+                if self.provider._save_chapter_info:
+                    self._archive.write_file('info.json', json.dumps(self.chapter_url))
 
-            chapter_info = self.provider.chapter_details(self.chapter_url)
-            if self.provider._save_chapter_info:
-                if chapter_info is not None:
-                    self._archive.write_file('eduhoribe.json', json.dumps(chapter_info))
-                else:
-                    warning('No chapter details was found!')
-                    warning('Possibly the provider has not yet been implemented to get this information')
+                chapter_info = self.provider.chapter_details(self.chapter_url)
+                if self.provider._save_chapter_info:
+                    if chapter_info is not None:
+                        self._archive.write_file('eduhoribe.json', json.dumps(chapter_info))
+                    else:
+                        warning('No chapter details was found!')
+                        warning('Possibly the provider has not yet been implemented to get this information')
 
-            self.chapter_progress(len(self.files), 0, True)
+                self.chapter_progress(len(self.files), 0, True)
 
-            self._multi_thread_save(self.files)
+                self._multi_thread_save(self.files)
 
-            self._make_archive()
+                self._make_archive()
+            else:
+
+                self.chapter_progress(len(self.files), 0, True)
+
+                self._multi_thread_save(self.files)
+            
         else:
             error('Bad files list type')
 
@@ -146,19 +156,32 @@ class OnePerOneDownloader(BaseDownloadMethod):
             info('after_file_save is None. Idx: {} / Url: {}'.format(idx, url), file=stderr)
             return None
 
-        self._archive.add_file(_path, in_arc_name=(_in_arc_name or in_arc_name))
-        callable(callback) and callback()
+        if self.provider._compress:
+            self._archive.add_file(_path, in_arc_name=(_in_arc_name or in_arc_name))
+            callable(callback) and callback()
 
-        if self.provider._params['cbz']:
-            with Image.open(_path) as r:  # type: Image.Image
-                w, h = r.size
+            if self.provider._params['cbz']:
+                with Image.open(_path) as r:  # type: Image.Image
+                    w, h = r.size
 
-            self.__pages_cache.append(Page(
-                index=idx,
-                size=file_size(_path),
-                width=w,
-                height=h,
-            ))
+                self.__pages_cache.append(Page(
+                    index=idx,
+                    size=file_size(_path),
+                    width=w,
+                    height=h,
+                ))     
+        else:
+
+            volume_path = Path(self.path[0])
+            image_path = Path(_path)
+
+            start_path = Path('.')
+            full_path = start_path / volume_path / image_path.name
+
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            shutil.copyfile(_path, full_path)
+            os.remove(_path) # Why do I need to call this manually? Where was it done when using an archive?
+            callable(callback) and callback()
 
         return _path
 

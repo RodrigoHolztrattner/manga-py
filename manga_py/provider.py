@@ -45,6 +45,7 @@ class Provider(Base, Abstract, Static, Callbacks, ArchiveName, ABC):
     _downloader = OnePerOneDownloader
     global_progress = None
     _state = None
+    _compress = False
 
     __images_cache = []
 
